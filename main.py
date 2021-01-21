@@ -1,6 +1,7 @@
 import time
 
-from hidden_markov_model import hidden_markov_model
+from hidden_markov_model import hidden_markov_model, viterbi
+from test_hidden_markov_model import test_tweet
 
 TWT_TRAIN_JSON = "./files/CSEP517-HW2-Data/twt.train.json"
 TWT_DEV_JSON = "./files/CSEP517-HW2-Data/twt.dev.json"
@@ -8,6 +9,11 @@ TWT_TEST_JSON = "./files/CSEP517-HW2-Data/twt.test.json"
 
 def part1(training_data):
     hmm = hidden_markov_model(2)
+    hmm.train(training_data)
+    v = viterbi(hmm)
+    v.guess_sentence_tags(test_tweet)
+    print("Part 1 Complete ")
+
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
