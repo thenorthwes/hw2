@@ -11,7 +11,17 @@ def part1(training_data):
     hmm = hidden_markov_model(2)
     hmm.train(training_data)
     v = viterbi(hmm)
-    v.guess_sentence_tags(test_tweet)
+    tc = 0
+    tt = 0
+    with open(TWT_DEV_JSON, "r") as training_data:
+        tweet = training_data.readline()
+        while tweet:
+            correct_total = v.guess_sentence_tags(tweet)
+            tc += correct_total[0]
+            tt += correct_total[1]
+            tweet = training_data.readline()
+
+    print(tc/tt)
     print("Part 1 Complete ")
 
 
