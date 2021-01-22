@@ -1,8 +1,12 @@
 import copy
 import json
+from math import log2, inf
+
+from cache_function import memoize
 
 END_ = "[E]"
 START_ = "[S]"
+k_smooth = .00000001
 
 
 class hidden_markov_model:
@@ -40,22 +44,28 @@ class hidden_markov_model:
                     self.word_sighting[word] = self.word_sighting.get(word, 0) + 1
 
     def emission_prob(self, tag, word):
+        loggable_prob = 0
         try:
-            return self.tag_emission_count[(tag, word)] / self.tag_sightings[tag]
+            loggable_prob = self.tag_emission_count[(tag, word)] / self.tag_sightings[tag]
         except KeyError:
-            return 0  # TODO Smooth prob
+            loggable_prob = k_smooth
+        return log2(loggable_prob)
 
     def transition_prob(self, tag1, tag2):
         # how many times did tag 1 give us tag 2
         # t2,t1 / t1
         try:
-            return self.tag_ngram[(tag1, tag2)] / self.tag_sightings[tag1]
+            return log2(self.tag_ngram[(tag1, tag2)] / self.tag_sightings[tag1])
         except KeyError:
-            return 0  # TODO smooth prob?
+            return -inf  # Creating unseen tag transitions is risky -- it allows for invalid english
+            # That being said -- a language model for emerging languages / patterns (like social media)
+            # should probably consider / learn and evolve
 
 
 class viterbi:
     def __init__(self, hmm: hidden_markov_model):
+        hmm.emission_prob = memoize(hmm.emission_prob)
+        hmm.transition_prob = memoize(hmm.transition_prob)
         self.hmm = hmm
         self.tags = list(hmm.tag_sightings.keys())
         self.table1 = []
@@ -76,7 +86,7 @@ class viterbi:
                 emission = self.hmm.emission_prob(tag,
                                                   word)  ## What is the probability of emitting this word as that tag
                 prev_tag_ = ""
-                mostProbable = 0
+                mostProbable = -inf
                 if word == START_:
                     ## Special start
                     word_tag_probs[1][START_] = (1, prev_tag_)
@@ -85,7 +95,7 @@ class viterbi:
                     for prev_tag in self.tags:  ## For every inbound edge
                         tag_transition_prob = self.hmm.transition_prob(prev_tag, tag)  ## inbound edge
                         prev_node_prob = self.table1[i - 1][1][prev_tag][0]  # Get the prob to arrive at the prev tag
-                        probability_of_reaching_node = emission * tag_transition_prob * prev_node_prob
+                        probability_of_reaching_node = emission + tag_transition_prob + prev_node_prob
                         if probability_of_reaching_node > mostProbable:
                             ## Best transition prob
                             mostProbable = probability_of_reaching_node
@@ -123,5 +133,3 @@ class viterbi:
 
     def col(self, param):
         return self.table1[0]
-
-    ## TODO each bigram becomes a row in your table (T^2)
