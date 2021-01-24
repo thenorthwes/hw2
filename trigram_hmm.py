@@ -12,8 +12,12 @@ k_smooth = .0000000001
 
 class trigram_hmm:
     def __init__(self):
+        self.tag_vocab_length: int = 0  # total number of distinct tags
+        self.total_word_sighting = 0
+        self.total_tag_sighting: int = 0  # count the total number of tags
+        self.word_sighting: dict = {}  # count the number of times we see a word (word)
         self.tag_sightings: dict = {}  # Count the number of times we see a tag (tag, count)
-        self.tag_key_sighting: dict = {} # count the number of times we see a n-1gram
+        self.tag_key_sighting: dict = {}  # count the number of times we see a n-1gram
         self.tag_emission_count: dict = {}  # count the number of times a word emitted a tag (word, tag)
         self.word_sighting: dict = {}  # count the number of times we see a word (word)
         self.tag_ngram: dict = {}  # count the number of times we see a tag after a tag ((tag, tag), count)
@@ -27,7 +31,7 @@ class trigram_hmm:
                 self.consume_tweet(tweet)
                 tweet = training_data.readline()
         self.hmm.train(training_data_)
-
+        self.tag_vocab_length = len(self.tag_sightings.keys())
 
     def consume_tweet(self, tweet):
         # add start and stop
@@ -44,30 +48,48 @@ class trigram_hmm:
                     t_w_tupe = (tag, word)
                     self.tag_emission_count[t_w_tupe] = self.tag_emission_count.get(t_w_tupe, 0) + 1
                     prev_tags = tuple(x[1] for x in padded_tweet[i - (self.ngram_size - 1):i])
-                    self.tag_key_sighting[prev_tags] = self.tag_key_sighting.get(prev_tags,0)+1
+                    self.tag_key_sighting[prev_tags] = self.tag_key_sighting.get(prev_tags, 0) + 1
                     tag_ngram = prev_tags + (tag,)
                     self.tag_ngram[tag_ngram] = self.tag_ngram.get(tag_ngram, 0) + 1
                     self.word_sighting[word] = self.word_sighting.get(word, 0) + 1
+                    self.total_word_sighting += 1
+                    self.total_tag_sighting += 1
 
     def emission_prob(self, tag, word):
-        loggable_prob = 0
+        loggable_prob_emission = 0
         try:
-            loggable_prob = self.tag_emission_count[(tag, word)] / self.tag_sightings[tag]
+            # pretend we saw an unk / tag pair which means 1 more tag sighting for ever tag
+            loggable_prob_emission = self.tag_emission_count[(tag, word)] / (self.tag_sightings[tag] + 1)
+            # plus tag size for unk
+            loggable_prob_word_prob = self.word_sighting[word] / (self.total_word_sighting + self.tag_vocab_length)
         except KeyError:
-            loggable_prob = k_smooth
-        return log2(loggable_prob)
+            # if we haven't seen this word before, assume its an 'UNK'
+            # since we pretend we have seen an unk for each tag
+            # we have seen unk TAG times
+            if word.startswith("@") and tag == "@":
+                loggable_prob_word_prob = .99
+            if (word.startswith("https://") or word.startswith("http://")) and tag == "U":
+                loggable_prob_word_prob = .99
+            else:
+                loggable_prob_word_prob = self.tag_vocab_length / (self.total_word_sighting + self.tag_vocab_length)
+
+        return log2((.8 * loggable_prob_emission) + (.2 * loggable_prob_word_prob))
 
     def transition_prob(self, tag0, tag1, tag2):
         # how many times did tag 1 give us tag 2
         # t2,t1 / t1
-        loggable_prob = 0
+        loggable_prob_tri = 0
+        loggable_prob_bi = 0
         try:
-            loggable_prob = self.tag_ngram[(tag0, tag1, tag2)] / self.tag_key_sighting[(tag0, tag1)]
+            loggable_prob_tri = self.tag_ngram[(tag0, tag1, tag2)] / self.tag_key_sighting[(tag0, tag1)]
         except KeyError:
-            loggable_prob = -inf  # Creating unseen tag transitions is risky -- it allows for invalid english
-            # That being said -- a language model for emerging languages / patterns (like social media)
-            # should probably consider / learn and evolve
-        return loggable_prob
+            loggable_prob_tri = 0  # nop
+        finally:
+            loggable_prob_bi = self.hmm.transition_prob_raw(tag1, tag2)
+            tag_prob = self.tag_sightings[tag2] / self.total_tag_sighting
+
+        return log2(.3 * loggable_prob_tri + .3 * loggable_prob_bi + .4 * tag_prob)
+
 
 class viterbi_tri:
     def __init__(self, hmm: trigram_hmm):
@@ -100,11 +122,14 @@ class viterbi_tri:
                 else:  # transitions
                     inboundProb = 0
                     for prev_tag in self.tags:  ## For every inbound edge
-                        prev_node_prob = self.table1[i - 1][1][prev_tag][0]  # Get the prob to arrive at the prev tag node
+                        prev_node_prob = self.table1[i - 1][1][prev_tag][
+                            0]  # Get the prob to arrive at the prev tag node
                         for prev_prev_tag in self.tags:  ## For every inbound edge of the n-1 node
-                            tag_transition_prob = self.hmm.transition_prob(prev_prev_tag, prev_tag, tag)  ## inbound edge
+                            tag_transition_prob = self.hmm.transition_prob(prev_prev_tag, prev_tag,
+                                                                           tag)  ## inbound edge
 
-                            prev_prev_node_prob = self.table1[i - 2][1][prev_prev_tag][0]  # Get the prob to arrive at the prev prev node tag
+                            prev_prev_node_prob = self.table1[i - 2][1][prev_prev_tag][
+                                0]  # Get the prob to arrive at the prev prev node tag
                             probability_of_reaching_node = emission + tag_transition_prob + prev_node_prob + prev_prev_node_prob
                             if probability_of_reaching_node > mostProbable:
                                 ## Best transition prob
@@ -130,7 +155,9 @@ class viterbi_tri:
             hmm_tag = i + 2  ## Skip the special stop and start tags
             if tagged_tweet[i][1] == tag_sequence_stack[hmm_tag]:
                 correctly_tagged_words += 1
-        print(correctly_tagged_words, len(tagged_tweet))
+            else:
+                print(tagged_tweet[i][0])
+
         return correctly_tagged_words, len(tagged_tweet)
         # go through and calculate the best transition
         # seeking the best way to reach this node from the last set of nodes

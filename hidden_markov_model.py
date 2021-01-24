@@ -46,8 +46,9 @@ class hidden_markov_model:
                     tag_ngram = prev_tags + (tag,)
                     self.tag_ngram[tag_ngram] = self.tag_ngram.get(tag_ngram, 0) + 1
                     self.word_sighting[word] = self.word_sighting.get(word, 0) + 1
-                    self.total_word_sighting += 1
-                    self.total_tag_sighting += 1
+                self.total_word_sighting += 1
+                self.total_tag_sighting += 1
+
 
 
     def emission_prob(self, tag, word):
@@ -79,6 +80,12 @@ class hidden_markov_model:
             # # should probably consider / learn and evolve
         return log2((.6*bi_prob)+(.4*tag_prob))
 
+    '''for linear opti '''
+    def transition_prob_raw(self, tag1, tag2):
+        try:
+            return self.tag_ngram[(tag1, tag2)] / self.tag_sightings[tag1]
+        except KeyError:
+            return 0
 
 
 class viterbi:

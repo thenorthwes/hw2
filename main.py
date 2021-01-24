@@ -32,7 +32,7 @@ def part2(training_data):
     v = viterbi_tri(hmm)
     tc = 0
     tt = 0
-    with open(TWT_DEV_JSON, "r") as training_data:
+    with open(TWT_testdev_JSON, "r") as training_data:
         tweet = training_data.readline()
         while tweet:
             correct_total = v.guess_sentence_tags(tweet)
@@ -46,8 +46,8 @@ def part2(training_data):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     print("******* HW 2 Program Starting")
-    part1(TWT_TRAIN_JSON)
-    # part2(TWT_TRAIN_JSON)
+    #part1(TWT_TRAIN_JSON)
+    part2(TWT_TRAIN_JSON)
     print("******* HW 2 Program completed in: {} seconds".format(round(time.process_time(), 2)))
 
 
