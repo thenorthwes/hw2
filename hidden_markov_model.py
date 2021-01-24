@@ -14,8 +14,10 @@ class hidden_markov_model:
         self.tag_sightings: dict = {}  # Count the number of times we see a tag (tag, count)
         self.tag_emission_count: dict = {}  # count the number of times a word emitted a tag (word, tag)
         self.word_sighting: dict = {}  # count the number of times we see a word (word)
+        self.total_word_sighting: int = 0 # count the total number of words
         self.tag_ngram: dict = {}  # count the number of times we see a tag after a tag ((tag, tag), count)
         self.ngram_size = ngram_size
+        self.tag_vocab_length: int = 0 # total number of distinct tags
 
     def train(self, training_data):
         with open(training_data, "r") as training_data:
@@ -23,6 +25,7 @@ class hidden_markov_model:
             while tweet:
                 self.consume_tweet(tweet)
                 tweet = training_data.readline()
+        self.tag_vocab_length = len(self.tag_sightings.keys())
 
     def consume_tweet(self, tweet):
         # add start and stop
@@ -42,14 +45,23 @@ class hidden_markov_model:
                     tag_ngram = prev_tags + (tag,)
                     self.tag_ngram[tag_ngram] = self.tag_ngram.get(tag_ngram, 0) + 1
                     self.word_sighting[word] = self.word_sighting.get(word, 0) + 1
+                    self.total_word_sighting += 1
+
 
     def emission_prob(self, tag, word):
-        loggable_prob = 0
+        loggable_prob_emission = 0
         try:
-            loggable_prob = self.tag_emission_count[(tag, word)] / self.tag_sightings[tag]
+            # pretend we saw an unk / tag pair which means 1 more tag sighting for ever tag
+            loggable_prob_emission = self.tag_emission_count[(tag, word)] / (self.tag_sightings[tag] + 1)
+            # plus tag size for unk
+            loggable_prob_word_prob = self.word_sighting[word] / (self.total_word_sighting + self.tag_vocab_length)
         except KeyError:
-            loggable_prob = k_smooth
-        return log2(loggable_prob)
+            # if we haven't seen this word before, assume its an 'UNK'
+            # since we pretend we have seen an unk for each tag
+            # we have seen unk TAG times
+            loggable_prob_word_prob = self.tag_vocab_length / (self.total_word_sighting + self.tag_vocab_length)
+
+        return log2((.98*loggable_prob_emission)+(.02*loggable_prob_word_prob))
 
     def transition_prob(self, tag1, tag2):
         # how many times did tag 1 give us tag 2
