@@ -13,6 +13,7 @@ class hidden_markov_model:
     def __init__(self, ngram_size: int):
         self.tag_sightings: dict = {}  # Count the number of times we see a tag (tag, count)
         self.tag_emission_count: dict = {}  # count the number of times a word emitted a tag (word, tag)
+        self.total_tag_sighting: int = 0  # count the total number of tags
         self.word_sighting: dict = {}  # count the number of times we see a word (word)
         self.total_word_sighting: int = 0 # count the total number of words
         self.tag_ngram: dict = {}  # count the number of times we see a tag after a tag ((tag, tag), count)
@@ -46,6 +47,7 @@ class hidden_markov_model:
                     self.tag_ngram[tag_ngram] = self.tag_ngram.get(tag_ngram, 0) + 1
                     self.word_sighting[word] = self.word_sighting.get(word, 0) + 1
                     self.total_word_sighting += 1
+                    self.total_tag_sighting += 1
 
 
     def emission_prob(self, tag, word):
@@ -67,11 +69,16 @@ class hidden_markov_model:
         # how many times did tag 1 give us tag 2
         # t2,t1 / t1
         try:
-            return log2(self.tag_ngram[(tag1, tag2)] / self.tag_sightings[tag1])
+            bi_prob = self.tag_ngram[(tag1, tag2)] / self.tag_sightings[tag1]
         except KeyError:
-            return -inf  # Creating unseen tag transitions is risky -- it allows for invalid english
-            # That being said -- a language model for emerging languages / patterns (like social media)
-            # should probably consider / learn and evolve
+            bi_prob = 0  # nop
+        finally:
+            tag_prob = self.tag_sightings[tag2] / self.total_tag_sighting
+            # return -inf  # Creating unseen tag transitions is risky -- it allows for invalid english
+            # # That being said -- a language model for emerging languages / patterns (like social media)
+            # # should probably consider / learn and evolve
+        return log2((.6*bi_prob)+(.4*tag_prob))
+
 
 
 class viterbi:
