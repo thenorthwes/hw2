@@ -78,7 +78,7 @@ class hidden_markov_model:
             # return -inf  # Creating unseen tag transitions is risky -- it allows for invalid english
             # # That being said -- a language model for emerging languages / patterns (like social media)
             # # should probably consider / learn and evolve
-        return log2((.6*bi_prob)+(.4*tag_prob))
+        return log2((.99*bi_prob)+(.01*tag_prob))
 
     '''for linear opti '''
     def transition_prob_raw(self, tag1, tag2):

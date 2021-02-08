@@ -66,14 +66,15 @@ class trigram_hmm:
             # if we haven't seen this word before, assume its an 'UNK'
             # since we pretend we have seen an unk for each tag
             # we have seen unk TAG times
-            if word.startswith("@") and tag == "@":
-                loggable_prob_word_prob = .99
-            if (word.startswith("https://") or word.startswith("http://")) and tag == "U":
-                loggable_prob_word_prob = .99
-            else:
-                loggable_prob_word_prob = self.tag_vocab_length / (self.total_word_sighting + self.tag_vocab_length)
+            # Commented out since we werent supposed to do this in this homework ~~~~~~~~~~~~~~~
+            # if word.startswith("@") and tag == "@":
+            #     loggable_prob_word_prob = .99
+            # if (word.startswith("https://") or word.startswith("http://")) and tag == "U":
+            #     loggable_prob_word_prob = .99
+            # else:
+            loggable_prob_word_prob = self.tag_vocab_length / (self.total_word_sighting + self.tag_vocab_length)
 
-        return log2((.8 * loggable_prob_emission) + (.2 * loggable_prob_word_prob))
+        return log2((.98 * loggable_prob_emission) + (.02 * loggable_prob_word_prob))
 
     def transition_prob(self, tag0, tag1, tag2):
         # how many times did tag 1 give us tag 2
@@ -88,7 +89,7 @@ class trigram_hmm:
             loggable_prob_bi = self.hmm.transition_prob_raw(tag1, tag2)
             tag_prob = self.tag_sightings[tag2] / self.total_tag_sighting
 
-        return log2(.3 * loggable_prob_tri + .3 * loggable_prob_bi + .4 * tag_prob)
+        return log2(.8 * loggable_prob_tri + .18 * loggable_prob_bi + .02 * tag_prob)
 
 
 class viterbi_tri:
@@ -155,8 +156,6 @@ class viterbi_tri:
             hmm_tag = i + 2  ## Skip the special stop and start tags
             if tagged_tweet[i][1] == tag_sequence_stack[hmm_tag]:
                 correctly_tagged_words += 1
-            else:
-                print(tagged_tweet[i][0])
 
         return correctly_tagged_words, len(tagged_tweet)
         # go through and calculate the best transition
